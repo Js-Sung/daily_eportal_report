@@ -1,6 +1,6 @@
 # 每日保平安
 This project handles the daily report of healthy of UESTC.  
-![Image](https://github.com/Js-Sung/daily_eportal_report/blob/master/useless/signed.png)  
+![Image](useless/signed.png)  
 
 ## Dependency
 golang, chromedp, chrome browser(Or chrome-based browsers. I am using Cent Browser that works fine:)).
@@ -17,7 +17,7 @@ golang, chromedp, chrome browser(Or chrome-based browsers. I am using Cent Brows
 2. Download all files in this repository. Modify the line 6-8 of main.cmd.
 3. Launch main.cmd to see if it works well.
 4. Add main.cmd as a daily scheduled task. Add two triggers just in case it fails the first time.  
-![Image](https://github.com/Js-Sung/daily_eportal_report/blob/master/useless/1.png)  
+![Image](useless/1.png)  
 
 ## Reference
 1. [bypass headless chrome detection
