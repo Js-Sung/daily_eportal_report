@@ -1,4 +1,4 @@
-# 每日保平安
+# 每日报平安
 This project handles the daily report of healthy of UESTC.  
 ![Image](useless/signed.png)  
 
