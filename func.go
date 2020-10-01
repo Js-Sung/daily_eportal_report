@@ -162,7 +162,7 @@ func main() {
 	}
 	
 	// save screenshot to a file
-	if err := ioutil.WriteFile("log.png", b1, 0644); err != nil {
+	if err := ioutil.WriteFile(id+"-log.png", b1, 0644); err != nil {
 		log.Fatal(err)
 	}
 	
