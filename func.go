@@ -13,13 +13,54 @@ import (
 	"github.com/chromedp/chromedp/device"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
+	"github.com/chromedp/cdproto/cdp"
 )
 
 
 
 var exe_path, temp_path, id, passwd string
 
+// run
+var b1 []byte
+var scriptID page.ScriptIdentifier
+var nodes []*cdp.Node
 
+// see: https://intoli.com/blog/not-possible-to-block-chrome-headless/
+const script = `(function(w, n, wn) {
+	// Pass the Webdriver Test.
+	Object.defineProperty(n, 'webdriver', {
+		get: () => false,
+	});
+
+	// Pass the Plugins Length Test.
+	// Overwrite the plugins property to use a custom getter.
+	Object.defineProperty(n, 'plugins', {
+		// This just needs to have length > 0 for the current test,
+		// but we could mock the plugins too if necessary.
+		get: () => [1, 2, 3, 4, 5],
+	});
+
+	// Pass the Languages Test.
+	// Overwrite the plugins property to use a custom getter.
+	Object.defineProperty(n, 'languages', {
+		get: () => ['zh-CN', 'zh'],
+	});
+
+	// Pass the Chrome Test.
+	// We can mock this in as much depth as we need for the test.
+	w.chrome = {
+		runtime: {},
+	};
+
+	// Pass the Permissions Test.
+	const originalQuery = wn.permissions.query;
+	return wn.permissions.query = (parameters) => (
+		parameters.name === 'notifications' ?
+		Promise.resolve({ state: Notification.permission }) :
+		originalQuery(parameters)
+	);
+
+})(window, navigator, window.navigator);`
 
 func main() {
 
@@ -30,7 +71,6 @@ func main() {
 	flag.Parse()
 	fmt.Println("id="+id, "password="+passwd, "exe path="+exe_path, "temp path="+temp_path)
 
-
 	
 	dir, err := ioutil.TempDir(temp_path, "chromedp-example")
 	if err != nil {
@@ -40,43 +80,6 @@ func main() {
 	}
 	defer os.RemoveAll(dir)
 
-	// see: https://intoli.com/blog/not-possible-to-block-chrome-headless/
-	const script = `(function(w, n, wn) {
-		// Pass the Webdriver Test.
-		Object.defineProperty(n, 'webdriver', {
-			get: () => false,
-		});
-
-		// Pass the Plugins Length Test.
-		// Overwrite the plugins property to use a custom getter.
-		Object.defineProperty(n, 'plugins', {
-			// This just needs to have length > 0 for the current test,
-			// but we could mock the plugins too if necessary.
-			get: () => [1, 2, 3, 4, 5],
-		});
-
-		// Pass the Languages Test.
-		// Overwrite the plugins property to use a custom getter.
-		Object.defineProperty(n, 'languages', {
-			get: () => ['zh-CN', 'zh'],
-		});
-
-		// Pass the Chrome Test.
-		// We can mock this in as much depth as we need for the test.
-		w.chrome = {
-			runtime: {},
-		};
-
-		// Pass the Permissions Test.
-		const originalQuery = wn.permissions.query;
-		return wn.permissions.query = (parameters) => (
-			parameters.name === 'notifications' ?
-			Promise.resolve({ state: Notification.permission }) :
-			originalQuery(parameters)
-		);
-
-	})(window, navigator, window.navigator);`
-	
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.DisableGPU,
@@ -106,12 +109,88 @@ func main() {
 	if err := chromedp.Run(taskCtx); err != nil {
 		panic(err)
 	}
-
-	// run
-	var b1 []byte
-	var scriptID page.ScriptIdentifier
-
+	
+	// navigate to eportal, input usrname passwd, click on 'sign in' button
+	fmt.Println("try to sign in.")
+	if err := chromedp.Run(taskCtx, task1()); err != nil {
+		log.Fatal(err)
+	}
+	
+	// check if Captcha exists
+	time.Sleep(500 * time.Millisecond)
 	if err := chromedp.Run(taskCtx,
+		chromedp.Nodes("#captcha-id", &nodes, chromedp.AtLeast(0)),
+	); err != nil {
+		log.Fatal(err)
+	} else {
+	
+		if nodes != nil {
+				fmt.Print("let's check if Captcha exists: ")
+				if len(nodes) > 0 {
+					fmt.Println("need to bypass Captcha.")
+					if err := chromedp.Run(taskCtx, task3()); err != nil {
+						log.Fatal(err)
+					}
+				} else {
+					fmt.Println("no Captcha.")
+				}
+				fmt.Println("logged in.")
+			} else {
+				fmt.Println("warning: can not determine if Captcha exists.")
+			}
+		
+		// click on 'add; button 
+		if err := chromedp.Run(taskCtx,task2()); err != nil {
+			log.Fatal(err)
+		}
+		
+		// check if you have clocked in before
+		time.Sleep(500 * time.Millisecond)
+		if err := chromedp.Run(taskCtx,
+			chromedp.Nodes("div.bh-pop.bh-card.bh-card-lv4.bh-dialog-con", &nodes, chromedp.AtLeast(0)),
+		); err != nil {
+			log.Fatal(err)
+		} else {
+		
+			if nodes != nil {
+				fmt.Print("let's check if you have clocked in before: ")
+				if len(nodes) < 1 {
+					fmt.Println("you need to clock in.")
+					if err := chromedp.Run(taskCtx,
+						// click on the "save" button
+						chromedp.Click(`#save`, chromedp.NodeReady),
+						// click on the "sure" button
+						chromedp.Click(`a.bh-dialog-btn.bh-bg-primary.bh-color-primary-5`, chromedp.NodeReady),
+					); err != nil {
+						log.Fatal(err)
+					}
+				} else {
+					fmt.Println("you have already clocked in.")
+				}
+				// take screenshot
+				if err := chromedp.Run(taskCtx,
+					chromedp.CaptureScreenshot(&b1),
+				); err != nil {
+					log.Fatal(err)
+				}
+			} else {
+				fmt.Println("warning: can not determine if you have already clocked in.")
+			}
+		}
+	
+	}
+
+	
+	// save screenshot to a file
+	if err := ioutil.WriteFile(id+"-log.png", b1, 0644); err != nil {
+		log.Fatal(err)
+	}
+	
+}
+
+
+func task1() chromedp.Tasks{
+	return chromedp.Tasks{
 		network.Enable(),
 		chromedp.Emulate(device.IPhone7),
 		chromedp.EmulateViewport(1024, 800),
@@ -129,10 +208,25 @@ func main() {
 		chromedp.WaitVisible(`#casLoginForm`, chromedp.ByID),
 		chromedp.SetValue(`#mobileUsername`, id, chromedp.ByID),
 		chromedp.SetValue(`#mobilePassword`, passwd, chromedp.ByID),
-		chromedp.Click(`#load`, chromedp.NodeReady),
-		chromedp.WaitVisible(`#captcha-id`, chromedp.ByID),
+		chromedp.Click(`#load`, chromedp.NodeReady),	
 		
-		// try to sign in...
+	}
+}
+
+func task2() chromedp.Tasks{
+	return chromedp.Tasks{
+		chromedp.WaitVisible(`#widget-recommendAndNew-01`, chromedp.ByID),
+		
+		chromedp.Navigate(`http://eportal.uestc.edu.cn/qljfwapp/sys/lwReportEpidemicStu/index.do`),
+		// click on the "add" button
+		chromedp.Click(`body > main > article > section > div.bh-mb-16 > div`, chromedp.NodeReady),
+	}
+}
+
+
+func task3() chromedp.Tasks{
+	return chromedp.Tasks{
+		// try to bypass Captcha...
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			_, exp, err := runtime.Evaluate(`document.querySelector("#casLoginForm").submit();`).Do(ctx)
 			if err != nil {
@@ -143,28 +237,5 @@ func main() {
 			}
 			return nil
 		}),
-		
-		chromedp.WaitVisible(`#widget-recommendAndNew-01 > div.clearfix.active.card-recommend-new-main.style-scope.pc-card-html-4786696181714491-01 > widget-app-item:nth-child(1) > div > div > div.widget-information.style-scope.pc-card-html-4786696181714491-01 > div`, chromedp.ByID),
-		
-		chromedp.Navigate(`http://eportal.uestc.edu.cn/qljfwapp/sys/lwReportEpidemicStu/index.do`),
-		// click on the "add" button
-		chromedp.Click(`body > main > article > section > div.bh-mb-16 > div`, chromedp.NodeReady),
-		// wait for the table visible
-		chromedp.WaitVisible(`#emapForm > div > div:nth-child(3)`, chromedp.ByID),
-		// click on the "save" button
-		chromedp.Click(`#save`, chromedp.NodeReady),
-		// click on the "sure" button
-		chromedp.Click(`a.bh-dialog-btn.bh-bg-primary.bh-color-primary-5`, chromedp.NodeReady),
-		// take screenshot
-		chromedp.CaptureScreenshot(&b1),
-	); err != nil {
-		log.Fatal(err)
 	}
-	
-	// save screenshot to a file
-	if err := ioutil.WriteFile(id+"-log.png", b1, 0644); err != nil {
-		log.Fatal(err)
-	}
-	
-	
 }
