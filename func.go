@@ -26,11 +26,12 @@ var scriptID page.ScriptIdentifier
 var nodes []*cdp.Node
 
 // see: https://intoli.com/blog/not-possible-to-block-chrome-headless/
+// see: https://github.com/paulirish/headless-cat-n-mouse/
 const script = `(function(w, n, wn) {
 	// Pass the Webdriver Test.
-	Object.defineProperty(n, 'webdriver', {
-		get: () => false,
-	});
+	const newProto = n.__proto__;
+	delete newProto.webdriver;
+	n.__proto__ = newProto;
 
 	// Pass the Plugins Length Test.
 	// Overwrite the plugins property to use a custom getter.
@@ -54,11 +55,29 @@ const script = `(function(w, n, wn) {
 
 	// Pass the Permissions Test.
 	const originalQuery = wn.permissions.query;
-	return wn.permissions.query = (parameters) => (
-		parameters.name === 'notifications' ?
-		Promise.resolve({ state: Notification.permission }) :
-		originalQuery(parameters)
-	);
+	wn.permissions.__proto__.query = parameters =>
+	parameters.name === 'notifications' ? Promise.resolve({state: Notification.permission}) : originalQuery(parameters);
+
+	// Inspired by: https://github.com/ikarienator/phantomjs_hide_and_seek/blob/master/5.spoofFunctionBind.js
+	const oldCall = Function.prototype.call;
+	function call() {
+		return oldCall.apply(this, arguments);
+	}
+	Function.prototype.call = call;
+
+	const nativeToStringFunctionString = Error.toString().replace(/Error/g, "toString");
+	const oldToString = Function.prototype.toString;
+
+	function functionToString() {
+		if (this === window.navigator.permissions.query) {
+			return "function query() { [native code] }";
+		}
+		if (this === functionToString) {
+			return nativeToStringFunctionString;
+		}
+		return oldCall.call(oldToString, this);
+	}
+	Function.prototype.toString = functionToString;
 
 })(window, navigator, window.navigator);`
 
@@ -87,7 +106,7 @@ func main() {
 		chromedp.Flag("headless", false),
 		chromedp.Flag("window-size", "1024,800"),
 		chromedp.Flag("enable-automation", false),
-		//chromedp.ProxyServer("http://192.168.1.217:8088"),
+		//chromedp.ProxyServer("http://localhost:8888"),
 		chromedp.UserAgent(`Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36`),
 
 		chromedp.UserDataDir(dir),
@@ -125,19 +144,19 @@ func main() {
 	} else {
 	
 		if nodes != nil {
-				fmt.Print("let's check if Captcha exists: ")
-				if len(nodes) > 0 {
-					fmt.Println("need to bypass Captcha.")
-					if err := chromedp.Run(taskCtx, task3()); err != nil {
-						log.Fatal(err)
-					}
-				} else {
-					fmt.Println("no Captcha.")
+			fmt.Print("let's check if Captcha exists: ")
+			if len(nodes) > 0 {
+				fmt.Println("need to bypass Captcha.")
+				if err := chromedp.Run(taskCtx, task3()); err != nil {
+					log.Fatal(err)
 				}
-				fmt.Println("logged in.")
 			} else {
-				fmt.Println("warning: can not determine if Captcha exists.")
+				fmt.Println("no Captcha.")
 			}
+			fmt.Println("logged in.")
+		} else {
+			fmt.Println("warning: can not determine if Captcha exists.")
+		}
 		
 		// click on 'add; button 
 		if err := chromedp.Run(taskCtx,task2()); err != nil {
