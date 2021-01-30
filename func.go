@@ -69,7 +69,7 @@ const script = `(function(w, n, wn) {
 	const oldToString = Function.prototype.toString;
 
 	function functionToString() {
-		if (this === window.navigator.permissions.query) {
+		if (this === wn.permissions.query) {
 			return "function query() { [native code] }";
 		}
 		if (this === functionToString) {
