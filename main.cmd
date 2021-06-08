@@ -18,12 +18,14 @@
 )
 
 
-@go run func.go -id="%id%" -passwd="%passwd%" -exe_path="%chrome_exe%" -temp_path="%tempdir%"
-
+:: depend on which platform you use
+@"./bin/func-windows-amd64.exe" -id="%id%" -passwd="%passwd%" -exe_path="%chrome_exe%" -temp_path="%tempdir%"
+::@go run func.go -id="%id%" -passwd="%passwd%" -exe_path="%chrome_exe%" -temp_path="%tempdir%"
 
 @cd /d %tempdir%
 
 @timeout /T 2 /NOBREAK
-@for /F %%D in ('dir /ad/b chromedp-*') do @rd /s /q %%D
+::@for /F %%D in ('dir /ad/b chromedp-*') do @rd /s /q %%D
+@for /F %%D in ('dir /ad/b %id%*') do @rd /s /q %%D
 
 ::exit
