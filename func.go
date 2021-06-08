@@ -88,10 +88,11 @@ func main() {
 	flag.StringVar(&exe_path, "exe_path", `D:\Program Files\CentBrowser\Application\chrome.exe`, "your chrome path")
 	flag.StringVar(&temp_path, "temp_path", `D:\temp`, "your temp folder for chrome")
 	flag.Parse()
+	fmt.Println("UESTC Daily Report, by Js-Sung (c) 2020")
 	fmt.Println("id="+id, "password="+passwd, "exe path="+exe_path, "temp path="+temp_path)
 
 	
-	dir, err := ioutil.TempDir(temp_path, "chromedp-example")
+	dir, err := ioutil.TempDir(temp_path, id)
 	if err != nil {
 		panic(err)
 	}else{
